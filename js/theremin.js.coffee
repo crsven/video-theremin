@@ -54,12 +54,20 @@ class window.VideoCanvas
   calculateFrequency: ->
     # 118800 pixesl - 29700 per quadrant - 22,720,500 possible total per quad
     # 8000 freq - 14.85 pixels per
+    #
+    # Column 200 - Row 50
+    # imageData.data[((50*(imageData.width*4)) + (200*4)) + 2];
     quad1 = 0
 
-    for i in [0..118798] by 4
-      quad1 += @pixels.data[i]
-      quad1 += @pixels.data[i + 1]
-      quad1 += @pixels.data[i + 2]
+    row = @pixels.width*4
+    half_width = (@pixels.width*4)/2
+    half_height = (@pixels.height)/2
+    for x in [0..half_height]
+      for y in [0..half_width] by 4
+        current = (x*row)+y
+        quad1 += @pixels.data[current]
+        quad1 += @pixels.data[current + 1]
+        quad1 += @pixels.data[current + 2]
 
     freq_ratio = quad1 / 22720500
     freq = 8000 * freq_ratio
@@ -69,10 +77,15 @@ class window.VideoCanvas
     # 2400 detune - 49.5 pixels per
     quad2 = 0
 
-    for i in [118801..237598] by 4
-      quad2 += @pixels.data[i]
-      quad2 += @pixels.data[i + 1]
-      quad2 += @pixels.data[i + 2]
+    row = @pixels.width*4
+    half_width = (@pixels.width*4)/2
+    half_height = (@pixels.height)/2
+    for x in [0..half_height]
+      for y in [half_width..row] by 4
+        current = (x*row)+y
+        quad2 += @pixels.data[current]
+        quad2 += @pixels.data[current + 1]
+        quad2 += @pixels.data[current + 2]
 
     detune_ratio = quad2 / 22720500
     if quad2 < 11360250
@@ -99,7 +112,6 @@ class window.Instrument
     @oscNode.type = set_type
     @oscNode.connect(@audioContext.destination)
     @oscNode.noteOn(0)
-    console.log('oscillator initted')
 
   updateOscillator: (frequency, detune, type) ->
     @oscNode.frequency.value = frequency
@@ -129,16 +141,14 @@ class window.Theremin
     noiseInterval = setInterval(@makeNoise, 50)
 
   initOscillator: ->
-    console.log('initting oscillator')
     freq = @canvas.calculateFrequency()
     detune = @canvas.calculateDetune()
-    #console.log("freq: #{freq} / detune: #{detune}")
     @instrument.createOscillator(freq, detune, 'SAW')
 
   makeNoise: =>
     freq = @canvas.calculateFrequency()
     detune = @canvas.calculateDetune()
-    #console.log("freq: #{freq} / detune: #{detune}")
+    console.log("freq: #{freq} / detune: #{detune}")
     @instrument.updateOscillator(freq, detune, 'SAW')
 
   stopNoise: ->
