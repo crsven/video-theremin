@@ -35,19 +35,15 @@ class window.VideoCanvas
   attachToVideo: (video) ->
     @video = video
     @resize()
-    @drawVideo()
+    @getFrameData()
 
   resize: ->
     @el.height = @video.height * 3
     @el.width = @video.width * 3
 
-  drawVideo:  ->
-    drawingInterval = setInterval(@getFrameData, 50)
-
   getFrameData: =>
     @drawFrame()
     @collectPixelData()
-    @manipulatePixels()
 
   drawFrame:  ->
     @context.drawImage(@video, 0, 0, @video.height * 3, @video.width * 3)
@@ -55,12 +51,47 @@ class window.VideoCanvas
   collectPixelData: ->
     @pixels = @context.getImageData(0,0,@el.width, @el.height)
 
-  manipulatePixels: ->
-    for pixel, i in @pixels.data by 4
-      @pixels.data[i] = pixel + 100
-      @pixels.data[i + 1] = @pixels.data[i + 1] - 50
-      @pixels.data[i + 2] = @pixels.data[i + 2] + 50
-      @pixels.data[i + 3] = @pixels.data[i + 3] * 0.5
+  calculateFrequency: ->
+    # 118800 pixesl - 29700 per quadrant - 22,720,500 possible total per quad
+    # 8000 freq - 14.85 pixels per
+    #
+    # Column 200 - Row 50
+    # imageData.data[((50*(imageData.width*4)) + (200*4)) + 2];
+    quad1 = 0
+
+    row = @pixels.width*4
+    half_width = (@pixels.width*4)/2
+    half_height = (@pixels.height)/2
+    for x in [0..half_height]
+      for y in [0..half_width] by 4
+        current = (x*row)+y
+        quad1 += @pixels.data[current]
+        quad1 += @pixels.data[current + 1]
+        quad1 += @pixels.data[current + 2]
+
+    freq_ratio = quad1 / 22720500
+    freq = 8000 * freq_ratio
+
+  calculateDetune: ->
+    # 118800 pixels - 29700 per quadrant - 22,720,500 possible total per quad
+    # 2400 detune - 49.5 pixels per
+    quad2 = 0
+
+    row = @pixels.width*4
+    half_width = (@pixels.width*4)/2
+    half_height = (@pixels.height)/2
+    for x in [0..half_height]
+      for y in [half_width..row] by 4
+        current = (x*row)+y
+        quad2 += @pixels.data[current]
+        quad2 += @pixels.data[current + 1]
+        quad2 += @pixels.data[current + 2]
+
+    detune_ratio = quad2 / 22720500
+    if quad2 < 11360250
+      detune_ratio *= -1
+
+    detune = 1200 * detune_ratio
 
 class window.Instrument
   constructor: ->
@@ -69,18 +100,27 @@ class window.Instrument
     @oscillators = []
 
   createOscillator: (frequency, detune, type) ->
-    oscNode = @audioContext.createOscillator()
-    @oscillators.push(oscNode)
-    oscNode.frequency.value = frequency
-    oscNode.detune.value = detune
+    @oscNode = @audioContext.createOscillator()
+    @oscillators.push(@oscNode)
+    @oscNode.frequency.value = frequency
+    @oscNode.detune.value = detune
     switch type
-      when "SINE" then set_type = oscNode.SINE
-      when "SAW" then set_type = oscNode.SAW
-      else set_type = oscNode.SINE
+      when "SINE" then set_type = @oscNode.SINE
+      when "SAW" then set_type = @oscNode.SAW
+      else set_type = @oscNode.SINE
 
-    oscNode.type = set_type
-    oscNode.connect(@audioContext.destination)
-    oscNode.noteOn(0)
+    @oscNode.type = set_type
+    @oscNode.connect(@audioContext.destination)
+    @oscNode.noteOn(0)
+
+  updateOscillator: (frequency, detune, type) ->
+    @oscNode.frequency.value = frequency
+    @oscNode.detune.value = detune
+    switch type
+      when "SINE" then set_type = @oscNode.SINE
+      when "SAW" then set_type = @oscNode.SAW
+      else set_type = @oscNode.SINE
+    @oscNode.type = set_type
 
   quiet: ->
     @stopOscillators()
@@ -96,11 +136,20 @@ class window.Theremin
     @canvas = new VideoCanvas('#canvasOutput')
     @canvas.attachToVideo(@video.el)
     @instrument = new Instrument
+    @initOscillator()
+    drawingInterval = setInterval(@canvas.getFrameData, 50)
+    noiseInterval = setInterval(@makeNoise, 50)
 
-  makeNoise: ->
-    freq = Math.floor(Math.random()*8001)
-    detune = Math.floor(Math.random()*1201)
-    @instrument.createOscillator(freq, detune, 'SINE')
+  initOscillator: ->
+    freq = @canvas.calculateFrequency()
+    detune = @canvas.calculateDetune()
+    @instrument.createOscillator(freq, detune, 'SAW')
+
+  makeNoise: =>
+    freq = @canvas.calculateFrequency()
+    detune = @canvas.calculateDetune()
+    console.log("freq: #{freq} / detune: #{detune}")
+    @instrument.updateOscillator(freq, detune, 'SAW')
 
   stopNoise: ->
     @instrument.quiet()
