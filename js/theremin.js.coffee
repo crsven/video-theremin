@@ -98,29 +98,30 @@ class window.Instrument
     @audioContext = new webkitAudioContext()
     @audioContext.destination = document.querySelector("#audioOutput")
     @oscillators = []
+    @oscillators = []
 
   createOscillator: (frequency, detune, type) ->
-    @oscNode = @audioContext.createOscillator()
-    @oscillators.push(@oscNode)
-    @oscNode.frequency.value = frequency
-    @oscNode.detune.value = detune
+    oscNode = @audioContext.createOscillator()
+    oscNode.frequency.value = frequency
+    oscNode.detune.value = detune
     switch type
-      when "SINE" then set_type = @oscNode.SINE
-      when "SAW" then set_type = @oscNode.SAW
-      else set_type = @oscNode.SINE
+      when "SINE" then set_type = oscNode.SINE
+      when "SAW" then set_type = oscNode.SAW
+      else set_type = oscNode.SINE
 
-    @oscNode.type = set_type
-    @oscNode.connect(@audioContext.destination)
-    @oscNode.noteOn(0)
+    oscNode.type = set_type
+    oscNode.connect(@audioContext.destination)
+    oscNode.noteOn(0)
+    @oscillators.push(oscNode)
 
-  updateOscillator: (frequency, detune, type) ->
-    @oscNode.frequency.value = frequency
-    @oscNode.detune.value = detune
+  updateOscillator: (frequency, detune, type, oscNode) ->
+    oscNode.frequency.value = frequency
+    oscNode.detune.value = detune
     switch type
-      when "SINE" then set_type = @oscNode.SINE
-      when "SAW" then set_type = @oscNode.SAW
-      else set_type = @oscNode.SINE
-    @oscNode.type = set_type
+      when "SINE" then set_type = oscNode.SINE
+      when "SAW" then set_type = oscNode.SAW
+      else set_type = oscNode.type
+    oscNode.type = set_type
 
   quiet: ->
     @stopOscillators()
@@ -136,20 +137,23 @@ class window.Theremin
     @canvas = new VideoCanvas('#canvasOutput')
     @canvas.attachToVideo(@video.el)
     @instrument = new Instrument
-    @initOscillator()
+    @initOscillators()
     drawingInterval = setInterval(@canvas.getFrameData, 50)
     noiseInterval = setInterval(@makeNoise, 50)
 
-  initOscillator: ->
+  initOscillators: ->
     freq = @canvas.calculateFrequency()
     detune = @canvas.calculateDetune()
     @instrument.createOscillator(freq, detune, 'SAW')
-
-  makeNoise: =>
     freq = @canvas.calculateFrequency()
     detune = @canvas.calculateDetune()
-    console.log("freq: #{freq} / detune: #{detune}")
-    @instrument.updateOscillator(freq, detune, 'SAW')
+    @instrument.createOscillator(freq, detune, 'SINE')
+
+  makeNoise: =>
+    for oscillator in @instrument.oscillators
+      freq = @canvas.calculateFrequency()
+      detune = @canvas.calculateDetune()
+      @instrument.updateOscillator(freq, detune, '', oscillator)
 
   stopNoise: ->
     @instrument.quiet()
