@@ -28,6 +28,8 @@ class window.IncomingVideo
           alert('Cannot access webcam.')
 
 class window.VideoCanvas
+  FULL_QUADRANT = 22720500
+
   constructor: (element) ->
     @el = document.querySelector(element)
     @context =  @el.getContext('2d')
@@ -69,8 +71,11 @@ class window.VideoCanvas
         quad1 += @pixels.data[current + 1]
         quad1 += @pixels.data[current + 2]
 
-    freq_ratio = quad1 / 22720500
-    freq = 8000 * freq_ratio
+    freq_ratio = quad1 / (FULL_QUADRANT/2)
+    freq_ratio = freq_ratio * .50
+    freq_ratio = freq_ratio + .1
+    console.log(freq_ratio)
+    freq_boost = 8000 * freq_ratio
 
   calculateDetune: ->
     # 118800 pixels - 29700 per quadrant - 22,720,500 possible total per quad
@@ -87,7 +92,7 @@ class window.VideoCanvas
         quad2 += @pixels.data[current + 1]
         quad2 += @pixels.data[current + 2]
 
-    detune_ratio = quad2 / 22720500
+    detune_ratio = quad2 / FULL_QUADRANT
     if quad2 < 11360250
       detune_ratio *= -1
 
@@ -148,7 +153,6 @@ class window.Theremin
   makeNoise: =>
     freq = @canvas.calculateFrequency()
     detune = @canvas.calculateDetune()
-    console.log("freq: #{freq} / detune: #{detune}")
     @instrument.updateOscillator(freq, detune, 'SAW')
 
   stopNoise: ->
